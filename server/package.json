@@ -1,0 +1,21 @@
+{
+  "name": "@open-video/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "autocorrect-node": "^2.14.0",
+    "hono": "^4.7.0",
+    "sherpa-onnx-node": "^1.13.8"
+  },
+  "optionalDependencies": {
+    "sherpa-onnx-darwin-arm64": "^1.13.8",
+    "sherpa-onnx-darwin-x64": "^1.13.8",
+    "sherpa-onnx-linux-x64": "^1.13.8",
+    "sherpa-onnx-win-x64": "^1.13.8"
+  }
+}

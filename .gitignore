@@ -1,0 +1,19 @@
+node_modules/
+pnpm-lock.yaml
+
+dist/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# 体积大的运行资产由安装脚本获取,不进仓库
+bin/
+models/
+data/audio/
+data/transcripts/
+data/cookies.txt
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+*.log
+.DS_Store
