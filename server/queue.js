@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { audioDir, db, getJob, getSpeakerNames, getVideo, getVoiceSamples, rootPath, samplesConfirmed, setJob, setVideo } from './db.js'
-import { downloadAudio, fetchMetadata, prepareAudio, probeWavDuration, toWav } from './jobs/download.js'
+import { downloadAudio, fetchMetadata, prepareAudio, probeWavDuration, publishedAtFromMetadata, toWav } from './jobs/download.js'
 import { seedsFromSamples } from './jobs/speaker-cluster.js'
 import { createLineReader } from './jobs/line-reader.js'
 
@@ -46,7 +46,12 @@ function makeReporter(jobId) {
 async function runDownloadPhase(video, report) {
   report('解析视频信息中…')
   const metadata = await fetchMetadata(video.url)
-  setVideo(video.id, { title: metadata.title, bvid: metadata.id || null })
+  // 原始标题、BV Hash 与原始发布时间都来自哔哩哔哩页面元数据
+  setVideo(video.id, {
+    title: metadata.title,
+    bvid: metadata.id || null,
+    source_published_at: publishedAtFromMetadata(metadata),
+  })
   const fileName = metadata.id || video.bvid
   if (!fileName) throw new Error('无法确定哔哩哔哩 ID')
   report('下载音频中…')
@@ -175,7 +180,11 @@ async function executeJob(job) {
       if (!target.bvid) {
         report('解析视频信息中…')
         const metadata = await fetchMetadata(target.url)
-        setVideo(target.id, { bvid: metadata.id || null, title: metadata.title })
+        setVideo(target.id, {
+          bvid: metadata.id || null,
+          title: metadata.title,
+          source_published_at: publishedAtFromMetadata(metadata),
+        })
         target = { ...target, bvid: metadata.id }
       }
       const wavPath = await prepareAudio(target)

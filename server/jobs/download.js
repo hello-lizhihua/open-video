@@ -19,6 +19,14 @@ export async function fetchMetadata(url) {
   return JSON.parse(stdout)
 }
 
+// 视频原始发布时间:upload_date 是页面日期(YYYYMMDD),优先于 timestamp(避免时区偏移)
+export function publishedAtFromMetadata(metadata) {
+  const upload = String(metadata?.upload_date || '')
+  return /^\d{8}$/.test(upload)
+    ? `${upload.slice(0, 4)}-${upload.slice(4, 6)}-${upload.slice(6, 8)}`
+    : null
+}
+
 // 下载与解码产物文件名使用哔哩哔哩 ID（bvid），不用数字编号
 export function downloadAudio(fileName, url, { onProgress } = {}) {
   const template = join(audioDir, `${fileName}.%(ext)s`)

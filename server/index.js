@@ -39,8 +39,11 @@ import {
   getSetting,
   getSpeakerNames,
   getVideo,
+  getVideoSections,
   getChapters,
   getVoiceSamples,
+  mountVideoSections,
+  clearVideoSections,
   renameGlossaryCategory,
   renameVideoGlossaryCategory,
   rootPath,
@@ -57,6 +60,7 @@ import {
 import { cookieArgs, ffmpegPath, saveCookie, ytDlpPath } from './binaries.js'
 import { enqueueJob, startQueue } from './queue.js'
 import { buildPolishedParagraphs, buildRawParagraphs } from './jobs/paragraphs.js'
+import { parseSectionXml } from './sections.js'
 import { decorateText, cleanAsrText, formatParagraphs, formatSrt } from './jobs/transcript-format.js'
 import { spaceText } from './jobs/cjk-space.js'
 
@@ -119,6 +123,7 @@ function projectVideos(projectId) {
         v.num_speakers AS numSpeakers, v.duration_seconds AS durationSeconds,
         v.trim_start_seconds AS trimStartSeconds,
         v.display_name AS displayName, v.bvid AS bvid, v.video_type AS videoType,
+        v.source_published_at AS publishedAt,
         v.created_at AS createdAt,
         (SELECT COUNT(*) FROM video_samples_confirmed c WHERE c.video_id = v.id) AS samplesConfirmed,
         (SELECT message FROM jobs WHERE video_id = v.id ORDER BY id DESC LIMIT 1) AS progressMessage
@@ -132,6 +137,7 @@ function projectVideos(projectId) {
     status: row.status,
     error: row.error,
     createdAt: row.createdAt,
+    publishedAt: row.publishedAt || null,
     numSpeakers: row.numSpeakers || 0,
     durationSeconds: row.durationSeconds || null,
     displayName: row.displayName || null,
@@ -404,6 +410,51 @@ app.put('/api/videos/:id/chapters', async (c) => {
     .filter((chapter) => /^[0-9a-f]{12}$/.test(chapter.hashStart) && chapter.title)
   setChapters(id, cleaned)
   return c.json({ ok: true, count: cleaned.length })
+})
+
+// 章节结构:挂载 section.xml(标签化格式,唯一属性是段落 hash)。
+// 段落本体不导入,只存边界 hash 与分析信息;重要段落与边界按 hash 对齐到转写段落。
+app.get('/api/videos/:id/sections', (c) => {
+  const id = Number(c.req.param('id'))
+  if (!getVideo(id)) return c.json({ error: '视频不存在' }, 404)
+  return c.json(getVideoSections(id))
+})
+
+app.post('/api/videos/:id/sections/mount', async (c) => {
+  const video = getVideo(Number(c.req.param('id')))
+  if (!video) return c.json({ error: '视频不存在' }, 404)
+  const body = await c.req.json().catch(() => ({}))
+  const filePath = String(body.path || '').trim()
+  if (!filePath) return c.json({ error: '请提供 section.xml 文件路径' }, 400)
+  if (!existsSync(filePath)) return c.json({ error: '文件不存在' }, 400)
+  let parsed
+  try {
+    parsed = parseSectionXml(readFileSync(filePath, 'utf8'))
+  } catch (err) {
+    return c.json({ error: `解析失败：${err.message}` }, 400)
+  }
+  const segments = loadTranscriptSegments(video)
+  const paraHashes = new Set(buildRawParagraphs(segments || []).map((para) => para.hash))
+  const anchors = parsed.sections.flatMap((section) => [
+    section.hashStart,
+    section.hashEnd,
+    ...section.marks.map((mark) => mark.hash),
+  ])
+  const missing = [...new Set(anchors.filter((hash) => !paraHashes.has(hash)))]
+  mountVideoSections(video.id, parsed)
+  return c.json({
+    ok: true,
+    sections: parsed.sections.length,
+    paragraphs: parsed.paragraphCount,
+    missing,
+  })
+})
+
+app.delete('/api/videos/:id/sections', (c) => {
+  const id = Number(c.req.param('id'))
+  if (!getVideo(id)) return c.json({ error: '视频不存在' }, 404)
+  clearVideoSections(id)
+  return c.json({ ok: true })
 })
 
 // 词汇表:提升识别与阅读准确率;带误识别词的词条在展示层自动替换
@@ -980,7 +1031,7 @@ if (existsSync(join(distDir, 'index.html'))) {
 
 startQueue()
 
-const port = Number(process.env.PORT) || 3199
+const port = Number(process.env.PORT) || 3000
 serve({ fetch: app.fetch, hostname: '127.0.0.1', port }, (info) => {
   console.log(`视频转文本管理系统已启动:http://127.0.0.1:${info.port}`)
 })

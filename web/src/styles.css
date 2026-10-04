@@ -369,7 +369,63 @@ body {
 }
 
 .drawer-transcript {
-  max-height: 52vh;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+/* 编辑抽屉:高度链 —— 页签头固定,内容区占满抽屉剩余高度,长列表在内部滚动。
+   结构事实:外层 el-tabs 的 pane 是空壳(仅页签头),内容区是与 el-tabs 平级的切换块 */
+.edit-drawer .el-drawer__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.edit-tabs-block {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 内层 el-tabs(原始/洗稿子页签)拉伸填充 */
+.edit-tabs-block .el-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 外层 el-tabs 只做页签头,不参与抢高度(后者覆盖前者的 flex) */
+.edit-tabs-block > .el-tabs {
+  flex: 0 0 auto;
+}
+
+.edit-tabs-block .el-tabs__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 外层内容区:按 editDrawerTab 手动切换的块,占满页签头以下全部高度 */
+.edit-tabs-block > :not(.el-tabs) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+/* 内层面板:操作条自然高度,滚动区拉伸占满 */
+.edit-tabs-block .el-tab-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
 }
 
 .transcript-seg {
@@ -416,6 +472,187 @@ body {
 
 .speaker-tag:hover {
   text-decoration: underline;
+}
+
+/* 结构页签:section.xml 挂载的章节分析卡片 */
+.section-card {
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+}
+
+.section-overview {
+  background: var(--el-color-primary-light-9);
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-ord {
+  font-weight: 700;
+  color: var(--el-color-primary);
+}
+
+.section-title {
+  flex: 1;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--el-color-primary);
+}
+
+.section-summary {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.section-meta {
+  background: var(--el-color-primary-light-9);
+}
+
+.section-points {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.section-marks {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.section-mark {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.mark-speaker {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
+.mark-why {
+  color: var(--el-text-color-regular);
+}
+
+.section-mount {
+  display: flex;
+  gap: 8px;
+  max-width: 560px;
+}
+
+/* 微信文章页签:文章排版,与导出公众号的 article html 同构;颜色走皮肤变量。
+   字号层级:基础 14px,摘要 16px,标题 18px;重要信息逐级提高 */
+.article-body {
+  line-height: 1.8;
+  color: var(--el-text-color-primary);
+  /* 关闭 WebKit(Safari 18.4+/iOS)对中英文的自动加隙 */
+  text-autospace: no-autospace;
+  /* 长斜杠串等不可断行大块的兜底断行 */
+  overflow-wrap: anywhere;
+}
+
+.article-meta {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--el-text-color-secondary);
+}
+
+.article-meta p {
+  margin: 0;
+}
+
+.article-meta a,
+.section-meta a {
+  color: var(--el-color-primary);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.article-meta a:hover,
+.section-meta a:hover {
+  text-decoration: underline;
+}
+
+.article-overview {
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--el-fill-color-light);
+  border-left: 3px solid var(--el-color-primary);
+  border-radius: 4px;
+}
+
+.article-overview-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
+.article-summary {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  text-align: justify;
+}
+
+.article-section {
+  margin-top: 16px;
+}
+
+.article-heading {
+  margin: 0 0 8px;
+}
+
+.article-ord {
+  margin-right: 8px;
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--el-color-primary);
+}
+
+.article-title {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.article-point {
+  margin: 0 0 6px;
+  text-align: justify;
+}
+
+.article-dot {
+  color: var(--el-color-primary);
+  font-weight: 700;
+}
+
+.article-marks {
+  margin-top: 4px;
+  padding: 12px 12px 2px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.article-mark {
+  margin: 0 0 10px 0;
+  text-align: justify;
+}
+
+.article-mark-meta {
+  margin-right: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-color-primary);
 }
 
 .transcript-text {

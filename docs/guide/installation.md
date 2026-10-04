@@ -30,14 +30,14 @@ pnpm run build
 pnpm start
 ```
 
-启动后访问 `http://127.0.0.1:3199`（服务只监听本机回环地址，不对局域网开放）。
+启动后访问 `http://127.0.0.1:3000`（服务只监听本机回环地址，不对局域网开放）。
 
 下载脚本内置镜像源回退：官方源失败会自动切换镜像（GitHub 加速代理、hf-mirror.com），单个资源重试后仍失败会明确报错。
 
 ## 开发模式
 
 ```bash
-pnpm run dev        # 同时启动后端(3199)与前端热更新(vite 默认端口)
+pnpm run dev        # 同时启动后端(3000)与前端热更新(vite 默认端口)
 pnpm run dev:server # 只启动后端
 pnpm run dev:web    # 只启动前端
 ```

@@ -78,6 +78,21 @@ export function getTranscript(videoId) {
   return request(`/api/videos/${videoId}/transcript`)
 }
 
+export function getVideoSections(videoId) {
+  return request(`/api/videos/${videoId}/sections`)
+}
+
+export function mountVideoSections(videoId, path) {
+  return request(`/api/videos/${videoId}/sections/mount`, {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
+}
+
+export function clearVideoSections(videoId) {
+  return request(`/api/videos/${videoId}/sections`, { method: 'DELETE' })
+}
+
 export function setSpeakerName(videoId, spk, name) {
   return request(`/api/videos/${videoId}/speakers`, {
     method: 'PUT',

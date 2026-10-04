@@ -27,6 +27,24 @@ export const db = new DatabaseSync(join(dataDir, 'app.db'))
 db.exec('PRAGMA journal_mode = WAL')
 db.exec('PRAGMA foreign_keys = ON')
 
+// 迁移:移除讲述人分段统计与构建说明列(索引类数据,不稳定且无需关注);列已不存在时忽略
+try {
+  db.exec('ALTER TABLE video_sections_overview DROP COLUMN speakers')
+} catch {
+  // 新建库或已迁移
+}
+try {
+  db.exec('ALTER TABLE video_sections_overview DROP COLUMN notes')
+} catch {
+  // 新建库或已迁移
+}
+// 迁移:补视频原始发布时间列(检测下载时从哔哩哔哩页面元数据读取)
+try {
+  db.exec('ALTER TABLE videos ADD COLUMN source_published_at TEXT')
+} catch {
+  // 新建库或列已存在
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,6 +57,7 @@ db.exec(`
     project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     url TEXT NOT NULL,
     title TEXT,
+    source_published_at TEXT,
     status TEXT NOT NULL DEFAULT 'idle',
     error TEXT,
     audio_path TEXT,
@@ -135,6 +154,27 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     ord INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- 章节结构(来自 section.xml 挂载):概述与每章的分析信息。
+  -- 段落本体不导入(转写已有),章节边界与重要段落只存 hash 锚点。
+  -- 讲述人分段统计、构建说明等索引类数据不入库:与转写切块相关,不稳定且无需关注。
+  CREATE TABLE IF NOT EXISTS video_sections_overview (
+    video_id INTEGER PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+    summary TEXT NOT NULL DEFAULT '',
+    mounted_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
+  CREATE TABLE IF NOT EXISTS video_sections (
+    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    ord INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    hash_start TEXT NOT NULL,
+    hash_end TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    points TEXT NOT NULL DEFAULT '[]',
+    marks TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (video_id, ord)
   );
 `)
 
@@ -370,6 +410,57 @@ export function setChapters(videoId, chapters) {
       'INSERT INTO video_chapters (video_id, ord, hash_start, hash_end, title) VALUES (?, ?, ?, ?, ?)',
     ).run(videoId, ord, chapter.hashStart, chapter.hashEnd, chapter.title)
   })
+}
+
+// 章节结构挂载:整体替换式写入(先清后插,与 setChapters 同风格)
+export function getVideoSections(videoId) {
+  const overview = db
+    .prepare('SELECT summary, mounted_at AS mountedAt FROM video_sections_overview WHERE video_id = ?')
+    .get(videoId)
+  const sections = db
+    .prepare(
+      `SELECT ord, title, hash_start AS hashStart, hash_end AS hashEnd, summary, points, marks
+       FROM video_sections WHERE video_id = ? ORDER BY ord`,
+    )
+    .all(videoId)
+    .map((row) => ({
+      ord: row.ord,
+      title: row.title,
+      hashStart: row.hashStart,
+      hashEnd: row.hashEnd,
+      summary: row.summary,
+      points: JSON.parse(row.points),
+      marks: JSON.parse(row.marks),
+    }))
+  return { overview: overview || null, sections }
+}
+
+export function mountVideoSections(videoId, { overview, sections }) {
+  db.prepare('DELETE FROM video_sections_overview WHERE video_id = ?').run(videoId)
+  db.prepare('DELETE FROM video_sections WHERE video_id = ?').run(videoId)
+  db.prepare(
+    'INSERT INTO video_sections_overview (video_id, summary) VALUES (?, ?)',
+  ).run(videoId, overview.summary)
+  sections.forEach((section) => {
+    db.prepare(
+      `INSERT INTO video_sections (video_id, ord, title, hash_start, hash_end, summary, points, marks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      videoId,
+      section.ord,
+      section.title,
+      section.hashStart,
+      section.hashEnd,
+      section.summary,
+      JSON.stringify(section.points),
+      JSON.stringify(section.marks),
+    )
+  })
+}
+
+export function clearVideoSections(videoId) {
+  db.prepare('DELETE FROM video_sections_overview WHERE video_id = ?').run(videoId)
+  db.prepare('DELETE FROM video_sections WHERE video_id = ?').run(videoId)
 }
 
 export function setVideoBvid(videoId, bvid) {

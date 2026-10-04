@@ -19,7 +19,7 @@ pnpm install             # 安装依赖（需要 Node.js 22.5+ 与 pnpm 8+）
 pnpm run setup:bin       # 下载 yt-dlp 与 ffmpeg 到仓库内部 bin 目录
 pnpm run setup:model     # 下载语音识别、VAD 与说话人分离模型到 models 目录
 pnpm run build           # 构建前端
-pnpm start               # 启动服务，默认 http://127.0.0.1:3199
+pnpm start               # 启动服务，默认 http://127.0.0.1:3000
 ```
 
 首次启动会在 `data/` 下自动创建 sqlite 数据库；音频、模型与个人数据均不入版本库。

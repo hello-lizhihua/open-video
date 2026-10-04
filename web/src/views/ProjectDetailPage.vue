@@ -196,6 +196,7 @@
     <!-- 编辑抽屉(查看与编辑共用同一套页签) -->
     <el-drawer
       v-model="editOpen"
+      class="edit-drawer"
       :title="editRow ? displayTitle(editRow) : '编辑视频'"
       size="800px"
       :close-on-click-modal="editMaskClosable"
@@ -206,6 +207,7 @@
             <el-tab-pane label="基础" name="basic" />
             <el-tab-pane label="校准讲述人" name="calibrate" />
             <el-tab-pane label="文本" name="text" />
+            <el-tab-pane label="微信文章" name="article" />
             <el-tab-pane label="词汇表" name="glossary" />
             <el-tab-pane label="设置" name="settings" />
           </el-tabs>
@@ -428,6 +430,116 @@
             </template>
           </div>
 
+          <div v-else-if="editDrawerTab === 'article'">
+            <p v-if="!editRow.hasTranscript" class="muted">转写完成后，这里可以生成微信文章。</p>
+            <p v-else-if="transcripts[editRow.id] === undefined" class="muted">加载中…</p>
+            <template v-else-if="sectionsData[editRow.id]?.sections?.length">
+              <div class="chapter-bar">
+                <el-radio-group v-model="editArticleLayout" size="small">
+                  <el-radio-button value="cards">卡片排版</el-radio-button>
+                  <el-radio-button value="article">文章排版</el-radio-button>
+                </el-radio-group>
+                <el-button size="small" @click="copyArticleRichText">复制文本</el-button>
+              </div>
+              <div class="transcript-segs drawer-transcript">
+                <template v-if="editArticleLayout === 'cards'">
+                  <div class="section-card section-meta">
+                    <p class="section-summary">{{ videoDate(editRow) }}</p>
+                    <p class="section-summary">{{ displayTitle(editRow) }}</p>
+                    <p class="section-summary">
+                      <a :href="videoUrl(editRow)" target="_blank" rel="noopener">{{ videoUrl(editRow) }}</a>
+                    </p>
+                  </div>
+                  <div v-if="sectionsData[editRow.id].overview" class="section-card section-overview">
+                    <div class="section-head">
+                      <span class="section-title">视频概述</span>
+                    </div>
+                    <p class="section-summary">{{ sectionsData[editRow.id].overview.summary }}</p>
+                  </div>
+                  <div v-for="sec in sectionsData[editRow.id].sections" :key="sec.ord" class="section-card">
+                    <div class="section-head">
+                      <span class="section-ord">{{ String(sec.ord).padStart(2, '0') }}</span>
+                      <span class="section-title">{{ sec.title }}</span>
+                      <el-button
+                        v-if="paraStart(editRow, sec.hashStart) !== null"
+                        class="time-link"
+                        link
+                        type="primary"
+                        size="small"
+                        @click="seekEditAudio(editRow, paraStart(editRow, sec.hashStart))"
+                      >
+                        {{ formatTimestamp(paraStart(editRow, sec.hashStart)) }}
+                      </el-button>
+                    </div>
+                    <p class="section-summary">{{ sec.summary }}</p>
+                    <ul v-if="sec.points.length" class="section-points">
+                      <li v-for="(point, i) in sec.points" :key="i">{{ point }}</li>
+                    </ul>
+                    <div v-if="sec.marks.length" class="section-marks">
+                      <div v-for="mark in sec.marks" :key="mark.hash" class="section-mark">
+                        <el-button
+                          v-if="paraStart(editRow, mark.hash) !== null"
+                          class="time-link"
+                          link
+                          type="primary"
+                          size="small"
+                          @click="seekEditAudio(editRow, paraStart(editRow, mark.hash))"
+                        >
+                          {{ formatTimestamp(paraStart(editRow, mark.hash)) }}
+                        </el-button>
+                        <span v-if="markSpeaker(editRow, mark.hash)" class="mark-speaker">{{ markSpeaker(editRow, mark.hash) }}</span>
+                        <span class="mark-why">{{ mark.why }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <div v-else class="article-body">
+                  <div class="article-meta">
+                    <p>{{ videoDate(editRow) }}</p>
+                    <p>{{ displayTitle(editRow) }}</p>
+                    <p>
+                      <a :href="videoUrl(editRow)" target="_blank" rel="noopener">{{ videoUrl(editRow) }}</a>
+                    </p>
+                  </div>
+                  <div class="article-overview">
+                    <p class="article-overview-title">视频概述</p>
+                    <p class="article-summary">{{ sectionsData[editRow.id].overview.summary }}</p>
+                  </div>
+                  <section v-for="sec in sectionsData[editRow.id].sections" :key="sec.ord" class="article-section">
+                    <p class="article-heading">
+                      <span class="article-ord">{{ String(sec.ord).padStart(2, '0') }}</span>
+                      <span class="article-title">{{ sec.title }}</span>
+                    </p>
+                    <p v-if="sec.summary" class="article-summary">{{ sec.summary }}</p>
+                    <p v-for="(point, i) in sec.points" :key="i" class="article-point">
+                      <span class="article-dot">· </span>{{ point }}
+                    </p>
+                    <div v-if="sec.marks.length" class="article-marks">
+                      <p v-for="mark in sec.marks" :key="mark.hash" class="article-mark">
+                        <span class="article-mark-meta">
+                          {{ formatTimestamp(paraStart(editRow, mark.hash)) }} {{ markSpeaker(editRow, mark.hash) }}
+                        </span>
+                        {{ mark.why }}
+                      </p>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <p class="muted">挂载 section.xml 后，这里预览微信文章；发布时再导出 html 并同步公众号。</p>
+              <div class="section-mount">
+                <el-input
+                  v-model="sectionMountPath"
+                  placeholder="section.xml 文件的绝对路径"
+                  size="small"
+                  clearable
+                />
+                <el-button type="primary" size="small" :loading="sectionMounting" @click="mountSections(editRow)">挂载</el-button>
+              </div>
+            </template>
+          </div>
+
           <div v-else-if="editDrawerTab === 'settings'">
             <el-form label-position="top">
               <el-form-item label="转写起点（秒）">
@@ -529,6 +641,8 @@ import {
   getProject,
   getTranscript,
   getVideoParts,
+  getVideoSections,
+  mountVideoSections,
   renameVideo,
   setNumSpeakers,
   setSpeakerName,
@@ -571,6 +685,12 @@ const editDrawerTab = ref('basic')
 const editMaskClosable = ref(false)
 // 编辑抽屉「文本」页签:音频播放器 + 原始/洗稿两个子页签,交互与展开区完全相同
 const editTextTab = ref('raw')
+// 「微信文章」页签:section.xml 挂载的章节分析,卡片/文章两种排版切换
+const editArticleLayout = ref('cards')
+// 按视频缓存挂载结果
+const sectionsData = reactive({})
+const sectionMountPath = ref('')
+const sectionMounting = ref(false)
 const editAudioRefs = reactive({})
 const calibrateAudioRefs = reactive({})
 const page = ref(1)
@@ -627,6 +747,15 @@ function displayTitle(video) {
   return video.displayName || video.title || video.url
 }
 
+// 微信文章头部信息:日期取哔哩哔哩原始发布时间(缺省回退入库日期),标题取显示名,链接取原始地址
+function videoDate(video) {
+  return (video.publishedAt || video.createdAt || '').slice(0, 10)
+}
+
+function videoUrl(video) {
+  return video.url || (bvId(video) ? `https://www.bilibili.com/video/${bvId(video)}/` : '')
+}
+
 function bvId(video) {
   const match = /BV[0-9A-Za-z]+/.exec(video.url || '')
   return match ? match[0] : null
@@ -642,13 +771,14 @@ function formatDuration(seconds) {
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
 
+// 时间戳统一完整 hh:mm:ss 结构,不因小时为零而省略
 function formatTimestamp(seconds) {
   const total = Math.max(0, Math.floor(Number(seconds) || 0))
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
   const pad = (value) => String(value).padStart(2, '0')
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
+  return `${pad(h)}:${pad(m)}:${pad(s)}`
 }
 
 function busy(video) {
@@ -763,6 +893,155 @@ async function loadTranscript(row) {
   }
 }
 
+async function loadSections(row) {
+  try {
+    sectionsData[row.id] = await getVideoSections(row.id)
+  } catch {
+    sectionsData[row.id] = { overview: null, sections: [] }
+  }
+}
+
+// 章节边界与重要段落按 hash 对齐到转写段落,取其时间戳用于展示与跳转
+function paraStart(row, hash) {
+  const para = (rowTranscript(row)?.paragraphs || []).find((item) => item.hash === hash)
+  return para ? para.start : null
+}
+
+function markSpeaker(row, hash) {
+  const para = (rowTranscript(row)?.paragraphs || []).find((item) => item.hash === hash)
+  if (!para || para.speaker === null || para.speaker === undefined) return ''
+  return speakerLabel(row, para.speaker)
+}
+
+async function mountSections(row) {
+  const path = sectionMountPath.value.trim()
+  if (!path) {
+    ElMessage.warning('请填写 section.xml 文件路径')
+    return
+  }
+  sectionMounting.value = true
+  try {
+    const result = await mountVideoSections(row.id, path)
+    if (result.missing?.length) {
+      ElMessage.warning(`已挂载 ${result.sections} 章，${result.missing.length} 个 hash 未对齐到转写段落`)
+    } else {
+      ElMessage.success(`已挂载 ${result.sections} 章`)
+    }
+    await loadSections(row)
+  } catch (err) {
+    ElMessage.error(err.message)
+  } finally {
+    sectionMounting.value = false
+  }
+}
+
+// 复制微信文章:富文本(text/html)优先,公众号编辑器粘贴即保真;剪贴板不支持时退化为纯文本
+async function copyArticleRichText() {
+  const html = articleRichHtml()
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([articlePlainText()], { type: 'text/plain' }),
+      }),
+    ])
+    ElMessage.success('已复制，可粘贴到微信公众号编辑器')
+  } catch {
+    await navigator.clipboard.writeText(articlePlainText())
+    ElMessage.success('剪贴板不支持富文本，已复制纯文本')
+  }
+}
+
+// 微信编辑器排版约束:全部内联样式;行内元素禁用 inline-block(长标题会整块换行);
+// 空格写进 span 文本内部(微信会剥掉节点之间的空白);主题色用固定克莱因蓝(不支持 CSS 变量)
+function articleRichHtml() {
+  const row = editRow.value
+  const data = sectionsData[row.id]
+  if (!row || !data) return ''
+  const paragraphs = rowTranscript(row)?.paragraphs || []
+  const startByHash = new Map(paragraphs.map((para) => [para.hash, para.start]))
+  const speakerByHash = new Map(
+    paragraphs.map((para) => [
+      para.hash,
+      para.speaker === null || para.speaker === undefined ? '' : speakerLabel(row, para.speaker),
+    ]),
+  )
+  const esc = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  // 正文断行:斜杠后插零宽空格,让 Calendly/Facebook/Instagram 这类长串可在任意斜杠后换行
+  // (微信会剥 CSS,字符级断行点最可靠;链接行不用,避免污染可复制的网址)
+  const escFlow = (text) => esc(text).replaceAll('/', '/\u200B')
+  const ts = (seconds) => formatTimestamp(seconds)
+  const BLUE = '#002fa7'
+  // 字号层级:基础 14px(根节点),重要段落整块 14px
+  const META = `font-weight:600;color:${BLUE};`
+  // 微信渲染约定:iOS 走 -apple-system-font(中文苹方),Android 忽略自定义中文字体用微信定制字体,写全字体栈即可;
+  // text-autospace:no-autospace 关闭 WebKit 对中英文的自动加隙;text-autospace 可继承,写在根节点
+  const FONT = "font-family:-apple-system-font,BlinkMacSystemFont,'Helvetica Neue','PingFang SC','Hiragino Sans GB','Microsoft YaHei UI','Microsoft YaHei',Arial,sans-serif;text-autospace:no-autospace;"
+  const parts = []
+  parts.push(`<section style="${FONT}max-width:677px;margin:0 auto;color:#3f3f3f;font-size:14px;line-height:1.8;overflow-wrap:anywhere;">`)
+  parts.push(`<p style="margin:0 0 8px 0;color:#888888;font-size:13px;">${esc(videoDate(row))}</p>`)
+  parts.push(`<p style="margin:0 0 8px 0;color:#888888;font-size:13px;">${esc(displayTitle(row))}</p>`)
+  // word-break 放在块级 p 上(可继承到 a,公众号过滤内联样式后仍生效),URL 独占一行且行内断行
+  parts.push(`<p style="margin:0 0 16px 0;color:#888888;font-size:13px;word-break:break-all;"><a href="${esc(videoUrl(row))}" style="color:${BLUE};text-decoration:none;word-break:break-all;">${esc(videoUrl(row))}</a></p>`)
+  if (data.overview?.summary) {
+    parts.push(`<section style="margin:0 0 16px 0;padding:16px;background:#f7f7f9;border-left:3px solid ${BLUE};border-radius:4px;"><p style="margin:0 0 8px 0;font-weight:600;color:${BLUE};">视频概述</p><p style="margin:0;font-size:16px;">${escFlow(data.overview.summary)}</p></section>`)
+  }
+  for (const sec of data.sections || []) {
+    const ord = String(sec.ord).padStart(2, '0')
+    parts.push(`<section style="margin:16px 0 0 0;"><p style="margin:0 0 12px 0;"><span style="font-weight:700;color:${BLUE};font-size:18px;">${ord}</span><span style="margin-left:8px;font-weight:700;font-size:18px;color:#3f3f3f;">${esc(sec.title)}</span></p>`)
+    if (sec.summary) parts.push(`<p style="margin:0 0 8px 0;font-size:16px;">${escFlow(sec.summary)}</p>`)
+    for (const point of sec.points || []) {
+      parts.push(`<p style="margin:0 0 6px 0;"><span style="font-weight:700;color:${BLUE};">· </span>${escFlow(point)}</p>`)
+    }
+    const marks = sec.marks || []
+    if (marks.length) {
+      parts.push('<section style="margin:0;padding:12px 12px 2px 12px;background:#fafafc;border-radius:4px;">')
+      for (const mark of marks) {
+        const start = startByHash.get(mark.hash)
+        const speaker = speakerByHash.get(mark.hash) || ''
+        const meta = [start === undefined || start === null ? '' : ts(start), speaker].filter(Boolean).join(' ')
+        parts.push(`<p style="margin:0 0 10px 0;"><span style="${META}">${esc(meta)} </span>${escFlow(mark.why)}</p>`)
+      }
+      parts.push('</section>')
+    }
+    parts.push('</section>')
+  }
+  parts.push('</section>')
+  return parts.join('\n')
+}
+
+// 纯文本兜底:同样结构,无样式
+function articlePlainText() {
+  const row = editRow.value
+  const data = sectionsData[row.id]
+  if (!row || !data) return ''
+  const paragraphs = rowTranscript(row)?.paragraphs || []
+  const startByHash = new Map(paragraphs.map((para) => [para.hash, para.start]))
+  const speakerByHash = new Map(
+    paragraphs.map((para) => [
+      para.hash,
+      para.speaker === null || para.speaker === undefined ? '' : speakerLabel(row, para.speaker),
+    ]),
+  )
+  const lines = []
+  lines.push(videoDate(row))
+  lines.push(displayTitle(row))
+  lines.push(videoUrl(row))
+  if (data.overview?.summary) lines.push('', '【视频概述】', data.overview.summary)
+  for (const sec of data.sections || []) {
+    lines.push('', `${String(sec.ord).padStart(2, '0')} ${sec.title}`)
+    if (sec.summary) lines.push(sec.summary)
+    for (const point of sec.points || []) lines.push(`· ${point}`)
+    for (const mark of sec.marks || []) {
+      const start = startByHash.get(mark.hash)
+      const speaker = speakerByHash.get(mark.hash) || ''
+      const meta = [start === undefined || start === null ? '' : formatTimestamp(start), speaker].filter(Boolean).join(' ')
+      lines.push(`${meta} ${mark.why}`.trim())
+    }
+  }
+  return lines.join('\n')
+}
+
 async function openEditDrawer(row, tab = 'basic', maskClosable = false) {
   editMaskClosable.value = maskClosable
   editRow.value = row
@@ -776,6 +1055,7 @@ async function openEditDrawer(row, tab = 'basic', maskClosable = false) {
   if (row.hasAudio) await loadVoiceSamples(row)
   // 每次打开都重新拉取,保证改名与洗稿编辑后的文本是最新的
   if (row.hasTranscript) await loadTranscript(row)
+  if (row.hasTranscript) await loadSections(row)
 }
 
 async function loadVoiceSamples(row) {
